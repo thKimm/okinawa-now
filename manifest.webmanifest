@@ -1,0 +1,40 @@
+{
+  "name": "Okinawa Now - 우리의 즉흥 여행 지도",
+  "short_name": "Okinawa Now",
+  "description": "현재 위치에서 가까운 오키나와 맛집, 쇼핑, 해변과 체험을 즉흥적으로 찾는 여행 지도",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#fff8e9",
+  "theme_color": "#0d8f93",
+  "orientation": "portrait-primary",
+  "lang": "ko-KR",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "맛집 보기",
+      "short_name": "맛집",
+      "url": "/?kind=restaurant",
+      "icons": [{ "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml" }]
+    },
+    {
+      "name": "바다·체험 보기",
+      "short_name": "바다",
+      "url": "/?quick=ocean",
+      "icons": [{ "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml" }]
+    },
+    {
+      "name": "쇼핑 보기",
+      "short_name": "쇼핑",
+      "url": "/?kind=shop",
+      "icons": [{ "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml" }]
+    }
+  ]
+}

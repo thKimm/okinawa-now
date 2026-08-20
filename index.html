@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#0d8f93" />
+    <meta name="description" content="현재 위치에서 가까운 오키나와 맛집, 쇼핑, 해변과 체험을 즉흥적으로 찾는 여행 지도" />
+    <meta name="robots" content="noindex,nofollow,noarchive" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Okinawa Now" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="icon" href="/icon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="/icon.svg" />
+    <link
+      rel="stylesheet"
+      href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+      integrity="sha256-p4NxAoJBhIINfQ3ynrXzYtJ0A2bLZcfA6/08Z4R1xwI="
+      crossorigin=""
+    />
+    <link rel="stylesheet" href="/styles.css" />
+    <title>Okinawa Now 🏝️</title>
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar">
+        <div class="brand-wrap">
+          <div class="brand-icon" aria-hidden="true">🐳</div>
+          <div>
+            <p class="eyebrow">우리의 즉흥 오키나와</p>
+            <h1>Okinawa Now <span aria-hidden="true">🏝️</span></h1>
+          </div>
+        </div>
+        <div class="topbar-actions">
+          <button class="icon-button" id="refreshButton" type="button" aria-label="시트 데이터 새로고침" title="시트 새로고침">
+            <span aria-hidden="true">↻</span>
+          </button>
+          <button class="icon-button" id="installButton" type="button" aria-label="홈 화면에 앱 설치" title="앱 설치" hidden>
+            <span aria-hidden="true">＋</span>
+          </button>
+        </div>
+      </header>
+
+      <section class="discovery-bar" aria-label="여행 장소 검색 및 필터">
+        <label class="search-box" for="searchInput">
+          <span aria-hidden="true">🔎</span>
+          <input id="searchInput" type="search" autocomplete="off" placeholder="소바, 해변, 쇼핑, 지역 이름…" />
+          <button id="clearSearchButton" class="clear-search" type="button" aria-label="검색어 지우기" hidden>×</button>
+        </label>
+
+        <div class="primary-filters" id="kindFilters" role="group" aria-label="장소 유형">
+          <button class="filter-pill is-active" type="button" data-kind="all">✨ 전체</button>
+          <button class="filter-pill" type="button" data-kind="restaurant">🍽️ 맛집</button>
+          <button class="filter-pill" type="button" data-kind="spot">🏖️ 볼거리·체험</button>
+          <button class="filter-pill" type="button" data-kind="shop">🛍️ 쇼핑</button>
+        </div>
+
+        <div class="quick-filters scroll-row" id="quickFilters" role="group" aria-label="빠른 필터">
+          <button class="chip is-active" type="button" data-quick="all">모두</button>
+          <button class="chip" type="button" data-quick="recommended">⭐ 추천</button>
+          <button class="chip" type="button" data-quick="nearby">📍 가까운 곳</button>
+          <button class="chip" type="button" data-quick="food">🍜 밥</button>
+          <button class="chip" type="button" data-quick="cafe">☕ 카페·간식</button>
+          <button class="chip" type="button" data-quick="ocean">🤿 바다·체험</button>
+          <button class="chip" type="button" data-quick="scenery">🌅 경치</button>
+          <button class="chip" type="button" data-quick="shopping">🎁 쇼핑</button>
+          <button class="chip" type="button" data-quick="favorites">💛 저장</button>
+          <button class="chip" type="button" data-quick="visited">✅ 다녀옴</button>
+        </div>
+
+        <div class="secondary-row">
+          <div class="region-filters" id="regionFilters" role="group" aria-label="지역">
+            <button class="region-button is-active" type="button" data-region="all">전 지역</button>
+            <button class="region-button" type="button" data-region="남부">남부</button>
+            <button class="region-button" type="button" data-region="중부">중부</button>
+            <button class="region-button" type="button" data-region="북부">북부</button>
+          </div>
+          <button class="surprise-button" id="surpriseButton" type="button">
+            <span aria-hidden="true">🎲</span>
+            지금 뭐 하지?
+          </button>
+        </div>
+      </section>
+
+      <main class="workspace">
+        <section class="map-panel" aria-label="오키나와 여행 지도">
+          <div id="map" role="application" aria-label="오키나와 장소 지도"></div>
+
+          <div class="map-top-overlay">
+            <div class="data-status" id="dataStatus" aria-live="polite">
+              <span class="status-dot"></span>
+              <span id="dataStatusText">데이터 불러오는 중</span>
+            </div>
+          </div>
+
+          <div class="map-controls">
+            <button class="map-control" id="locateButton" type="button" aria-label="내 현재 위치 찾기">
+              <span aria-hidden="true">◎</span>
+              <span>내 위치</span>
+            </button>
+            <button class="map-control" id="fitButton" type="button" aria-label="보이는 장소 지도에 맞추기">
+              <span aria-hidden="true">⛶</span>
+              <span>전체 보기</span>
+            </button>
+          </div>
+
+          <div class="geocode-progress" id="geocodeProgress" hidden>
+            <span class="mini-spinner" aria-hidden="true"></span>
+            <span id="geocodeProgressText">정확한 핀을 준비하는 중</span>
+          </div>
+        </section>
+
+        <section class="list-panel" aria-label="장소 목록">
+          <div class="list-toolbar">
+            <div>
+              <p class="list-kicker" id="listKicker">즉흥 여행 후보</p>
+              <h2><span id="resultCount">0</span>곳</h2>
+            </div>
+            <label class="sort-select">
+              <span class="sr-only">정렬 방식</span>
+              <select id="sortSelect">
+                <option value="smart">추천순</option>
+                <option value="distance">거리순</option>
+                <option value="name">이름순</option>
+              </select>
+            </label>
+          </div>
+
+          <div class="active-summary" id="activeSummary"></div>
+          <div class="place-list" id="placeList" aria-live="polite"></div>
+          <button class="load-more" id="loadMoreButton" type="button" hidden>더 보기</button>
+        </section>
+      </main>
+
+      <nav class="mobile-nav" aria-label="모바일 보기 전환">
+        <button class="mobile-nav-button is-active" type="button" data-view="map"><span>🗺️</span>지도</button>
+        <button class="mobile-nav-button" type="button" data-view="list"><span>📋</span>목록</button>
+        <button class="mobile-nav-button" type="button" data-view="saved"><span>💛</span>저장</button>
+        <button class="mobile-nav-button" id="mobileSurpriseButton" type="button"><span>🎲</span>추천</button>
+      </nav>
+    </div>
+
+    <div class="sheet-backdrop" id="detailBackdrop" hidden></div>
+    <aside class="detail-sheet" id="detailSheet" aria-label="장소 상세 정보" aria-hidden="true">
+      <div class="sheet-handle" aria-hidden="true"></div>
+      <button class="sheet-close" id="detailCloseButton" type="button" aria-label="상세 정보 닫기">×</button>
+      <div id="detailContent"></div>
+    </aside>
+
+    <div class="modal-backdrop" id="surpriseBackdrop" hidden></div>
+    <section class="surprise-modal" id="surpriseModal" role="dialog" aria-modal="true" aria-labelledby="surpriseTitle" aria-hidden="true">
+      <button class="sheet-close" id="surpriseCloseButton" type="button" aria-label="추천 닫기">×</button>
+      <div class="surprise-heading">
+        <span class="surprise-whale" aria-hidden="true">🐳</span>
+        <p>지금 기분대로</p>
+        <h2 id="surpriseTitle">여기 어때?</h2>
+      </div>
+      <div id="surpriseResults" class="surprise-results"></div>
+      <button class="reroll-button" id="rerollButton" type="button">🎲 다시 골라줘</button>
+    </section>
+
+    <div class="toast" id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
+
+    <template id="emptyStateTemplate">
+      <div class="empty-state">
+        <div class="empty-emoji">🐚</div>
+        <h3>조건에 맞는 장소가 없어요</h3>
+        <p>필터를 조금 풀거나 다른 검색어를 넣어보세요.</p>
+      </div>
+    </template>
+
+    <script
+      src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+      integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+      crossorigin=""
+    ></script>
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>

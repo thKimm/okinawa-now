@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="ocean" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0" stop-color="#33c6c7"/>
+      <stop offset="1" stop-color="#087d91"/>
+    </linearGradient>
+    <linearGradient id="sun" x1="0" x2="1">
+      <stop offset="0" stop-color="#ffcf64"/>
+      <stop offset="1" stop-color="#ff8f6b"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="116" fill="#fff8e9"/>
+  <circle cx="382" cy="130" r="68" fill="url(#sun)"/>
+  <path d="M0 326c80-45 146-48 222-12 82 39 175 42 290-5v203H0z" fill="url(#ocean)"/>
+  <path d="M0 386c96-32 168-20 237 15 76 39 160 37 275-4v115H0z" fill="#0b6275" opacity=".55"/>
+  <text x="256" y="260" text-anchor="middle" font-size="176" font-family="Apple Color Emoji, Segoe UI Emoji, sans-serif">🐳</text>
+  <text x="256" y="457" text-anchor="middle" font-size="68" font-weight="800" font-family="Arial Rounded MT Bold, sans-serif" fill="#fff">NOW</text>
+</svg>

@@ -1,0 +1,17 @@
+{
+  "name": "okinawa-now",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Mobile-first Okinawa spontaneous travel map powered by Google Sheets.",
+  "scripts": {
+    "dev": "vercel dev",
+    "serve": "python3 -m http.server 4173",
+    "check": "node --check app.js && node --check lib/csv.js && node --check lib/normalize.js && node --check api/places.js && node --check api/geocode.js",
+    "test": "node --test",
+    "sync:data": "node scripts/update-fallback.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
