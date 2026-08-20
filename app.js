@@ -2,6 +2,7 @@ const SHEET_URL = "https://docs.google.com/spreadsheets/d/1M99Q4xCDtrT9KLc7vHQNF
 const STORAGE = {
   data: "okinawa-now:data:v2",
   favorites: "okinawa-now:favorites:v1",
+  view: "okinawa-now:view:v3",
   visited: "okinawa-now:visited:v1",
   coords: "okinawa-now:coords:v2",
 };
@@ -69,6 +70,7 @@ const state = {
   selectedId: null,
   kind: "all",
   quick: "all",
+  foodCategory: "all",
   region: "all",
   search: "",
   sort: "smart",
@@ -80,6 +82,7 @@ const state = {
   source: "loading",
   generatedAt: "",
   installPrompt: null,
+  mobileView: localStorage.getItem(STORAGE.view) || "map",
   toastTimer: null
 };
 
@@ -153,7 +156,8 @@ function getCachedData() {
 function initElements() {
   [
     "refreshButton", "installButton", "searchInput", "clearSearchButton", "kindFilters",
-    "quickFilters", "regionFilters", "surpriseButton", "map", "dataStatus", "dataStatusText",
+    "quickFilters", "foodCategoryFilter", "foodCategorySelect", "foodCategoryLabel",
+    "regionFilters", "surpriseButton", "mobileSurpriseButton", "map", "dataStatus", "dataStatusText",
     "locateButton", "fitButton", "listKicker",
     "resultCount", "sortSelect", "activeSummary", "placeList", "loadMoreButton", "detailBackdrop",
     "detailSheet", "detailCloseButton", "detailContent", "surpriseBackdrop", "surpriseModal",
@@ -306,6 +310,87 @@ function coordinateFor(place) {
   return approximateCoordinate(place);
 }
 
+
+function isCafeCategory(place) {
+  return /(카페|디저트|베이커리|브런치)/.test(place.category) ||
+    /간식|아이스크림|스무디|커피|도넛|빙수|쿠키|과자/.test(place.summary);
+}
+
+function foodCategoryMode() {
+  if (state.quick === "food") return "food";
+  if (state.quick === "cafe") return "cafe";
+  if (state.kind === "restaurant") return "restaurant";
+  return "";
+}
+
+function updateFoodCategoryOptions() {
+  if (!els.foodCategoryFilter || !els.foodCategorySelect) return;
+  const mode = foodCategoryMode();
+  els.foodCategoryFilter.hidden = !mode;
+
+  if (!mode) {
+    state.foodCategory = "all";
+    return;
+  }
+
+  const categories = [...new Set(
+    state.places
+      .filter((place) => place.kind === "restaurant")
+      .filter((place) => {
+        if (mode === "food") return !isCafeCategory(place) && !/다이닝바/.test(place.category);
+        if (mode === "cafe") return isCafeCategory(place);
+        return true;
+      })
+      .map((place) => place.category)
+      .filter(Boolean)
+  )].sort((a, b) => a.localeCompare(b, "ko"));
+
+  els.foodCategoryLabel.textContent =
+    mode === "food" ? "🍚 밥 종류" : mode === "cafe" ? "☕ 간식 종류" : "🍽️ 음식 종류";
+
+  const allLabel =
+    mode === "food" ? "전체 밥 종류" : mode === "cafe" ? "전체 카페·간식" : "전체 음식";
+
+  els.foodCategorySelect.innerHTML = [
+    `<option value="all">${allLabel}</option>`,
+    ...categories.map((category) => `<option value="${e(category)}">${e(category)}</option>`)
+  ].join("");
+
+  if (state.foodCategory !== "all" && !categories.includes(state.foodCategory)) {
+    state.foodCategory = "all";
+  }
+  els.foodCategorySelect.value = state.foodCategory;
+}
+
+function setAppView(view) {
+  state.mobileView = view;
+  localStorage.setItem(STORAGE.view, view);
+
+  if (view === "saved") {
+    state.quick = "favorites";
+  } else if (view === "list" && state.quick === "favorites") {
+    state.quick = "all";
+  }
+
+  document.body.classList.toggle("view-map", view === "map");
+  document.body.classList.toggle("view-list", view === "list" || view === "saved");
+
+  document.querySelectorAll(".mobile-nav-button[data-view]").forEach((button) => {
+    button.classList.toggle("is-active", button.dataset.view === view);
+  });
+
+  render();
+
+  if (view === "map") {
+    setTimeout(() => {
+      state.map?.invalidateSize();
+      fitFilteredPlaces();
+    }, 80);
+  } else {
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+}
+
 function filterPlaces() {
   const query = state.search.toLocaleLowerCase("ko-KR");
   let places = state.places.filter((place) => {
@@ -322,28 +407,45 @@ function filterPlaces() {
       if (!searchable.includes(query)) return false;
     }
 
+    let quickMatched = true;
     switch (state.quick) {
       case "recommended":
-        return ["강력추천", "추천", "날씨대안"].includes(place.tripRecommendation) || place.priority === 1;
+        quickMatched = ["강력추천", "추천", "날씨대안"].includes(place.tripRecommendation) || place.priority === 1;
+        break;
       case "nearby":
-        return state.userLocation ? distanceTo(place) <= 25 : true;
+        quickMatched = state.userLocation ? distanceTo(place) <= 25 : true;
+        break;
       case "food":
-        return place.kind === "restaurant" && !/(카페|디저트|베이커리|다이닝바)/.test(place.category);
+        quickMatched = place.kind === "restaurant" && !isCafeCategory(place) && !/다이닝바/.test(place.category);
+        break;
       case "cafe":
-        return /(카페|디저트|베이커리)/.test(place.category) || /간식|아이스크림|스무디|커피/.test(place.summary);
+        quickMatched = isCafeCategory(place);
+        break;
       case "ocean":
-        return /(해양|해변|수족관|섬·드라이브|리조트)/.test(place.category) || /스노클|바다|해안|수영/.test(place.summary);
+        quickMatched = /(해양|해변|수족관|섬·드라이브|리조트)/.test(place.category) || /스노클|바다|해안|수영/.test(place.summary);
+        break;
       case "scenery":
-        return /(전망|드라이브|거리·자연|리조트)/.test(place.category) || /뷰|절경|선셋|일몰|풍경/.test(`${place.summary} ${place.note}`);
+        quickMatched = /(전망|드라이브|거리·자연|리조트)/.test(place.category) || /뷰|절경|선셋|일몰|풍경/.test(`${place.summary} ${place.note}`);
+        break;
       case "shopping":
-        return place.kind === "shop" || /쇼핑|시장·푸드센터/.test(place.category);
+        quickMatched = place.kind === "shop" || /쇼핑|시장·푸드센터/.test(place.category);
+        break;
       case "favorites":
-        return state.favorites.has(place.id);
+        quickMatched = state.favorites.has(place.id);
+        break;
       case "visited":
-        return state.visited.has(place.id);
+        quickMatched = state.visited.has(place.id);
+        break;
       default:
-        return true;
+        quickMatched = true;
     }
+    if (!quickMatched) return false;
+
+    if (state.foodCategory !== "all") {
+      if (place.kind !== "restaurant" || place.category !== state.foodCategory) return false;
+    }
+
+    return true;
   });
 
   places = sortPlaces(places);
@@ -400,6 +502,7 @@ function formatDistance(place) {
 }
 
 function render() {
+  updateFoodCategoryOptions();
   filterPlaces();
   syncFilterButtons();
   renderSummary();
@@ -427,6 +530,7 @@ function renderSummary() {
   const parts = [];
   if (state.kind !== "all") parts.push({ restaurant: "맛집", spot: "볼거리·체험", shop: "쇼핑" }[state.kind]);
   if (state.region !== "all") parts.push(state.region);
+  if (state.foodCategory !== "all") parts.push(state.foodCategory);
   if (state.search) parts.push(`“${state.search}”`);
   if (state.userLocation) parts.push("내 위치 기준");
   els.activeSummary.textContent = parts.length ? `${parts.join(" · ")} 필터 적용 중` : "필터를 누르면 지금 기분에 맞는 장소만 볼 수 있어요.";
@@ -804,6 +908,9 @@ function bindEvents() {
     const button = event.target.closest("[data-kind]");
     if (!button) return;
     state.kind = button.dataset.kind;
+    if (state.kind !== "restaurant" && !["food", "cafe"].includes(state.quick)) {
+      state.foodCategory = "all";
+    }
     state.visibleCount = 28;
     render();
   });
@@ -813,8 +920,17 @@ function bindEvents() {
     if (!button) return;
     const next = button.dataset.quick;
     state.quick = next;
+    if (!["food", "cafe"].includes(next) && state.kind !== "restaurant") {
+      state.foodCategory = "all";
+    }
     state.visibleCount = 28;
     if (next === "nearby" && !state.userLocation) requestLocation();
+    render();
+  });
+
+  els.foodCategorySelect.addEventListener("change", () => {
+    state.foodCategory = els.foodCategorySelect.value;
+    state.visibleCount = 28;
     render();
   });
 
@@ -852,7 +968,12 @@ function bindEvents() {
   els.locateButton.addEventListener("click", () => requestLocation());
   els.fitButton.addEventListener("click", fitFilteredPlaces);
   els.surpriseButton.addEventListener("click", openSurprise);
+  els.mobileSurpriseButton.addEventListener("click", openSurprise);
   els.rerollButton.addEventListener("click", openSurprise);
+
+  document.querySelectorAll(".mobile-nav-button[data-view]").forEach((button) => {
+    button.addEventListener("click", () => setAppView(button.dataset.view));
+  });
   els.detailCloseButton.addEventListener("click", closeDetail);
   els.detailBackdrop.addEventListener("click", closeDetail);
   els.surpriseCloseButton.addEventListener("click", closeSurprise);
@@ -884,7 +1005,9 @@ function bindEvents() {
     els.installButton.hidden = true;
   });
 
-  window.addEventListener("resize", () => state.map?.invalidateSize());
+  window.addEventListener("resize", () => {
+    if (state.mobileView === "map") setTimeout(() => state.map?.invalidateSize(), 60);
+  });
 }
 
 function registerServiceWorker() {
@@ -898,8 +1021,17 @@ async function init() {
   initFromQuery();
   initMap();
   bindEvents();
+
+  document.body.classList.toggle("view-map", state.mobileView === "map");
+  document.body.classList.toggle("view-list", state.mobileView !== "map");
+  document.querySelectorAll(".mobile-nav-button[data-view]").forEach((button) => {
+    button.classList.toggle("is-active", button.dataset.view === state.mobileView);
+  });
+
   registerServiceWorker();
   await loadPlaces();
+
+  if (state.mobileView === "map") setTimeout(() => state.map?.invalidateSize(), 60);
 
   // Start with the whole island visible after markers are ready.
   if (!state.userLocation) fitFilteredPlaces();

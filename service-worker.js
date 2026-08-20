@@ -1,4 +1,4 @@
-const CACHE_VERSION = "okinawa-now-v2";
+const CACHE_VERSION = "okinawa-now-v3";
 const APP_SHELL = [
   "/",
   "/index.html",
