@@ -15,10 +15,8 @@
     <link
       rel="stylesheet"
       href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-      integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
-      crossorigin=""
     />
-    <link rel="stylesheet" href="/styles.css" />
+    <link rel="stylesheet" href="/styles.css?v=2" />
     <title>Okinawa Now 🏝️</title>
   </head>
   <body>
@@ -104,10 +102,6 @@
             </button>
           </div>
 
-          <div class="geocode-progress" id="geocodeProgress" hidden>
-            <span class="mini-spinner" aria-hidden="true"></span>
-            <span id="geocodeProgressText">정확한 핀을 준비하는 중</span>
-          </div>
         </section>
 
         <section class="list-panel" aria-label="장소 목록">
@@ -132,12 +126,6 @@
         </section>
       </main>
 
-      <nav class="mobile-nav" aria-label="모바일 보기 전환">
-        <button class="mobile-nav-button is-active" type="button" data-view="map"><span>🗺️</span>지도</button>
-        <button class="mobile-nav-button" type="button" data-view="list"><span>📋</span>목록</button>
-        <button class="mobile-nav-button" type="button" data-view="saved"><span>💛</span>저장</button>
-        <button class="mobile-nav-button" id="mobileSurpriseButton" type="button"><span>🎲</span>추천</button>
-      </nav>
     </div>
 
     <div class="sheet-backdrop" id="detailBackdrop" hidden></div>
@@ -174,6 +162,6 @@
       integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
       crossorigin=""
     ></script>
-    <script type="module" src="/app.js"></script>
+    <script type="module" src="/app.js?v=2"></script>
   </body>
 </html>

@@ -4,7 +4,6 @@ const STORAGE = {
   favorites: "okinawa-now:favorites:v1",
   visited: "okinawa-now:visited:v1",
   coords: "okinawa-now:coords:v2",
-  view: "okinawa-now:view:v1"
 };
 
 const REGION_ANCHORS = [
@@ -78,14 +77,9 @@ const state = {
   favorites: loadSet(STORAGE.favorites),
   visited: loadSet(STORAGE.visited),
   coords: loadObject(STORAGE.coords),
-  geocodeFailures: new Set(),
-  geocodeQueue: [],
-  geocodeBusy: false,
-  geocodedThisSession: 0,
   source: "loading",
   generatedAt: "",
   installPrompt: null,
-  mobileView: localStorage.getItem(STORAGE.view) || "map",
   toastTimer: null
 };
 
@@ -160,10 +154,10 @@ function initElements() {
   [
     "refreshButton", "installButton", "searchInput", "clearSearchButton", "kindFilters",
     "quickFilters", "regionFilters", "surpriseButton", "map", "dataStatus", "dataStatusText",
-    "locateButton", "fitButton", "geocodeProgress", "geocodeProgressText", "listKicker",
+    "locateButton", "fitButton", "listKicker",
     "resultCount", "sortSelect", "activeSummary", "placeList", "loadMoreButton", "detailBackdrop",
     "detailSheet", "detailCloseButton", "detailContent", "surpriseBackdrop", "surpriseModal",
-    "surpriseCloseButton", "surpriseResults", "rerollButton", "mobileSurpriseButton", "toast"
+    "surpriseCloseButton", "surpriseResults", "rerollButton", "toast"
   ].forEach((id) => {
     els[id] = document.getElementById(id);
   });
@@ -251,7 +245,6 @@ async function loadPlaces({ force = false } = {}) {
   }
 
   render();
-  queuePriorityGeocoding();
 }
 
 function sanitizePlace(place) {
@@ -549,7 +542,6 @@ function selectPlace(id, { fly = true, open = true } = {}) {
   renderMarkers();
   renderList();
   if (open) openDetail(place);
-  if (!coordinateFor(place).exact) queueGeocode(place, true);
 }
 
 function navigateUrl(place) {
@@ -688,7 +680,6 @@ function requestLocation({ switchToDistance = true } = {}) {
       renderUserMarker();
       render();
       state.map?.flyTo([state.userLocation.lat, state.userLocation.lng], 12, { duration: 0.7 });
-      queueNearbyGeocoding();
       showToast("현재 위치를 기준으로 가까운 곳을 정렬했어요 📍");
       resetLocateButton();
     },
@@ -726,82 +717,6 @@ function renderUserMarker() {
     fillOpacity: 0.08,
     weight: 1
   }).addTo(state.map);
-}
-
-function queuePriorityGeocoding() {
-  const candidates = [...state.places]
-    .filter((place) => !coordinateFor(place).exact)
-    .sort((a, b) => smartScore(a) - smartScore(b))
-    .slice(0, 10);
-  candidates.forEach((place) => queueGeocode(place));
-}
-
-function queueNearbyGeocoding() {
-  const candidates = [...state.places]
-    .filter((place) => !coordinateFor(place).exact)
-    .sort((a, b) => distanceTo(a) - distanceTo(b))
-    .slice(0, 12);
-  candidates.forEach((place) => queueGeocode(place, true));
-}
-
-function queueGeocode(place, priority = false) {
-  if (!place || coordinateFor(place).exact || state.geocodeFailures.has(place.id)) return;
-  if (state.geocodedThisSession >= 28) return;
-  if (state.geocodeQueue.some((item) => item.id === place.id)) return;
-  if (priority) state.geocodeQueue.unshift(place);
-  else state.geocodeQueue.push(place);
-  processGeocodeQueue();
-}
-
-async function processGeocodeQueue() {
-  if (state.geocodeBusy || !state.geocodeQueue.length || state.geocodedThisSession >= 28) {
-    updateGeocodeProgress();
-    return;
-  }
-
-  state.geocodeBusy = true;
-  const place = state.geocodeQueue.shift();
-  updateGeocodeProgress(place);
-
-  try {
-    const params = new URLSearchParams({
-      name: place.nativeName || place.name,
-      address: place.address || `${place.area} ${place.region} Okinawa`
-    });
-    const response = await fetch(`/api/geocode?${params.toString()}`);
-    if (!response.ok) throw new Error(`Geocode ${response.status}`);
-    const result = await response.json();
-    if (!result.found || !Number.isFinite(result.lat) || !Number.isFinite(result.lng)) {
-      throw new Error("No coordinate");
-    }
-
-    state.coords[place.id] = {
-      lat: result.lat,
-      lng: result.lng,
-      source: "nominatim",
-      updatedAt: Date.now()
-    };
-    saveCoords();
-    state.geocodedThisSession += 1;
-    renderMarkers();
-    if (state.selectedId === place.id) openDetail(place);
-  } catch (error) {
-    console.warn("Geocode failed", place.name, error);
-    state.geocodeFailures.add(place.id);
-  } finally {
-    state.geocodeBusy = false;
-    updateGeocodeProgress();
-    setTimeout(processGeocodeQueue, 1150);
-  }
-}
-
-function updateGeocodeProgress(activePlace = null) {
-  const active = state.geocodeBusy || state.geocodeQueue.length > 0;
-  els.geocodeProgress.hidden = !active;
-  if (active) {
-    const name = activePlace?.name ? ` · ${activePlace.name}` : "";
-    els.geocodeProgressText.textContent = `정확한 핀 준비 중 ${state.geocodedThisSession}/28${name}`;
-  }
 }
 
 function timeAffinity(place) {
@@ -877,23 +792,6 @@ function closeSurprise() {
   }, 210);
 }
 
-function setMobileView(view) {
-  if (window.matchMedia("(min-width: 760px)").matches) return;
-  state.mobileView = view;
-  localStorage.setItem(STORAGE.view, view);
-  document.body.classList.toggle("view-map", view === "map");
-  document.body.classList.toggle("view-list", view === "list" || view === "saved");
-  document.querySelectorAll(".mobile-nav-button[data-view]").forEach((button) => {
-    button.classList.toggle("is-active", button.dataset.view === (view === "saved" ? "saved" : view));
-  });
-  if (view === "saved") {
-    state.quick = "favorites";
-    state.visibleCount = 28;
-    render();
-  }
-  if (view === "map") setTimeout(() => state.map?.invalidateSize(), 50);
-}
-
 function showToast(message) {
   window.clearTimeout(state.toastTimer);
   els.toast.textContent = message;
@@ -954,7 +852,6 @@ function bindEvents() {
   els.locateButton.addEventListener("click", () => requestLocation());
   els.fitButton.addEventListener("click", fitFilteredPlaces);
   els.surpriseButton.addEventListener("click", openSurprise);
-  els.mobileSurpriseButton.addEventListener("click", openSurprise);
   els.rerollButton.addEventListener("click", openSurprise);
   els.detailCloseButton.addEventListener("click", closeDetail);
   els.detailBackdrop.addEventListener("click", closeDetail);
@@ -965,9 +862,6 @@ function bindEvents() {
     renderList();
   });
 
-  document.querySelectorAll(".mobile-nav-button[data-view]").forEach((button) => {
-    button.addEventListener("click", () => setMobileView(button.dataset.view));
-  });
 
   document.addEventListener("keydown", (event) => {
     if (event.key === "Escape") {
@@ -990,14 +884,7 @@ function bindEvents() {
     els.installButton.hidden = true;
   });
 
-  window.addEventListener("resize", () => {
-    if (window.matchMedia("(min-width: 760px)").matches) {
-      document.body.classList.remove("view-map", "view-list");
-      state.map?.invalidateSize();
-    } else {
-      setMobileView(state.mobileView);
-    }
-  });
+  window.addEventListener("resize", () => state.map?.invalidateSize());
 }
 
 function registerServiceWorker() {
@@ -1011,7 +898,6 @@ async function init() {
   initFromQuery();
   initMap();
   bindEvents();
-  setMobileView(state.mobileView);
   registerServiceWorker();
   await loadPlaces();
 

@@ -1,4 +1,4 @@
-const CACHE_VERSION = "okinawa-now-v1";
+const CACHE_VERSION = "okinawa-now-v2";
 const APP_SHELL = [
   "/",
   "/index.html",
@@ -50,7 +50,13 @@ self.addEventListener("fetch", (event) => {
 
   if (url.origin === self.location.origin) {
     event.respondWith(
-      caches.match(request).then((cached) => cached || fetch(request))
+      fetch(request)
+        .then((response) => {
+          const clone = response.clone();
+          caches.open(CACHE_VERSION).then((cache) => cache.put(request, clone));
+          return response;
+        })
+        .catch(() => caches.match(request))
     );
   }
 });
