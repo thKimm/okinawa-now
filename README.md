@@ -145,3 +145,14 @@ service-worker.js PWA 오프라인 캐시
 - 저장 화면은 즐겨찾기만 필터링
 - `🍜 밥`, `☕ 카페·간식`, `맛집` 선택 시 Google Sheet의 음식 대분류를 세부 드롭다운으로 자동 생성
 - 상단 검색/필터를 더 컴팩트하게 조정해 지도 공간 확대
+
+
+## v4 smoother map
+
+- 줌아웃 시 가까운 장소를 자체 lightweight cluster로 묶음
+- 확대할수록 클러스터가 개별 이모지 핀으로 자연스럽게 분리
+- 현재 화면 밖 핀은 DOM에 만들지 않음
+- pan/zoom 중 연속 재렌더링 대신 `moveend/zoomend` 후 한 번만 갱신
+- 마커 그림자·애니메이션 paint 비용 축소
+- 목록 카드에 `content-visibility` 적용
+- 별도 clustering CDN/라이브러리를 추가하지 않음

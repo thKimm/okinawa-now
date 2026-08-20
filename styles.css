@@ -1468,3 +1468,91 @@ body {
     min-height: 72dvh;
   }
 }
+
+
+/* v4 — smoother map rendering without adding another network dependency */
+.emoji-marker {
+  width: 40px;
+  height: 44px;
+  font-size: 22px;
+  box-shadow: 0 4px 11px rgba(8, 57, 68, 0.18);
+  transition: transform 0.12s ease;
+  contain: layout paint style;
+}
+
+.emoji-marker.is-favorite {
+  box-shadow: 0 0 0 3px rgba(255, 201, 94, 0.42), 0 4px 11px rgba(8, 57, 68, 0.18);
+}
+
+.emoji-marker:hover,
+.emoji-marker.is-selected {
+  transform: translateY(-2px) scale(1.06);
+}
+
+.cluster-marker-wrap {
+  background: transparent !important;
+  border: 0 !important;
+}
+
+.map-cluster {
+  width: 46px;
+  height: 46px;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  padding: 0 7px;
+  border: 2px solid rgba(255,255,255,.94);
+  border-radius: 17px;
+  background: rgba(255, 250, 237, 0.96);
+  box-shadow: 0 5px 14px rgba(8, 57, 68, 0.18);
+  color: var(--ink);
+  transform: translateZ(0);
+  contain: layout paint style;
+}
+
+.map-cluster.is-medium {
+  width: 50px;
+  height: 50px;
+  background: rgba(223, 246, 243, 0.97);
+}
+
+.map-cluster.is-large {
+  width: 54px;
+  height: 54px;
+  background: rgba(255, 226, 218, 0.97);
+}
+
+.cluster-emoji {
+  font-size: 21px;
+  line-height: 1;
+}
+
+.cluster-count {
+  min-width: 15px;
+  height: 19px;
+  padding: 0 4px;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 999px;
+  background: var(--ocean);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.map-cluster.is-large .cluster-count {
+  background: var(--coral);
+}
+
+.place-card {
+  content-visibility: auto;
+  contain-intrinsic-size: 132px;
+}
+
+.leaflet-marker-icon,
+.leaflet-tile {
+  backface-visibility: hidden;
+}

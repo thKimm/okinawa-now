@@ -63,6 +63,7 @@ const state = {
   map: null,
   markerLayer: null,
   markers: new Map(),
+  markerRenderTimer: null,
   userMarker: null,
   userAccuracyCircle: null,
   places: [],
@@ -194,6 +195,8 @@ function initMap() {
   }).addTo(state.map);
 
   state.markerLayer = L.layerGroup().addTo(state.map);
+
+  state.map.on("moveend zoomend", () => scheduleMarkerRender(55));
 }
 
 async function loadPlaces({ force = false } = {}) {
@@ -385,6 +388,7 @@ function setAppView(view) {
     setTimeout(() => {
       state.map?.invalidateSize();
       fitFilteredPlaces();
+      scheduleMarkerRender(90);
     }, 80);
   } else {
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -507,7 +511,7 @@ function render() {
   syncFilterButtons();
   renderSummary();
   renderList();
-  renderMarkers();
+  if (state.mobileView === "map") scheduleMarkerRender(0);
 }
 
 function syncFilterButtons() {
@@ -604,33 +608,152 @@ function markerIcon(place, { selected = false } = {}) {
   return L.divIcon({
     className: "emoji-marker-wrap",
     html: `<div class="emoji-marker kind-${e(place.kind)}${favorite ? " is-favorite" : ""}${coord.exact ? "" : " is-approximate"}${selected ? " is-selected" : ""}">${e(place.emoji)}</div>`,
-    iconSize: [42, 48],
-    iconAnchor: [18, 44],
-    tooltipAnchor: [3, -39]
+    iconSize: [40, 45],
+    iconAnchor: [17, 41],
+    tooltipAnchor: [3, -37]
+  });
+}
+
+function clusterGridSize(zoom) {
+  if (zoom >= 13) return 0;
+  if (zoom <= 9) return 92;
+  if (zoom === 10) return 80;
+  if (zoom === 11) return 66;
+  return 52;
+}
+
+function visibleMarkerPlaces() {
+  if (!state.map) return [];
+  const bounds = state.map.getBounds()?.pad(0.28);
+  if (!bounds?.isValid()) return state.filtered;
+
+  const visible = state.filtered.filter((place) => {
+    const coord = coordinateFor(place);
+    return bounds.contains([coord.lat, coord.lng]);
+  });
+
+  if (state.selectedId && !visible.some((place) => place.id === state.selectedId)) {
+    const selected = state.filtered.find((place) => place.id === state.selectedId);
+    if (selected) visible.push(selected);
+  }
+
+  return visible;
+}
+
+function clusterPlaces(places) {
+  const zoom = state.map?.getZoom() ?? 13;
+  const gridSize = clusterGridSize(zoom);
+  if (!gridSize) return places.map((place) => ({ places: [place] }));
+
+  const buckets = new Map();
+
+  places.forEach((place) => {
+    const coord = coordinateFor(place);
+    const point = state.map.project([coord.lat, coord.lng], zoom);
+    const key = `${Math.floor(point.x / gridSize)}:${Math.floor(point.y / gridSize)}`;
+    if (!buckets.has(key)) buckets.set(key, []);
+    buckets.get(key).push(place);
+  });
+
+  return [...buckets.values()].map((places) => ({ places }));
+}
+
+function clusterEmoji(places) {
+  const counts = new Map();
+  places.forEach((place) => counts.set(place.emoji, (counts.get(place.emoji) || 0) + 1));
+  return [...counts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] || "📍";
+}
+
+function clusterCenter(places) {
+  const totals = places.reduce((acc, place) => {
+    const coord = coordinateFor(place);
+    acc.lat += coord.lat;
+    acc.lng += coord.lng;
+    return acc;
+  }, { lat: 0, lng: 0 });
+
+  return [totals.lat / places.length, totals.lng / places.length];
+}
+
+function clusterIcon(places) {
+  const count = places.length;
+  const emoji = clusterEmoji(places);
+  const sizeClass = count >= 20 ? " is-large" : count >= 8 ? " is-medium" : "";
+  return L.divIcon({
+    className: "emoji-marker-wrap cluster-marker-wrap",
+    html: `<div class="map-cluster${sizeClass}"><span class="cluster-emoji">${e(emoji)}</span><span class="cluster-count">${count}</span></div>`,
+    iconSize: [54, 54],
+    iconAnchor: [27, 27]
   });
 }
 
 function renderMarkers() {
-  if (!state.map || !state.markerLayer) return;
+  if (!state.map || !state.markerLayer || state.mobileView !== "map") return;
+
+  const groups = clusterPlaces(visibleMarkerPlaces());
   state.markerLayer.clearLayers();
   state.markers.clear();
 
-  state.filtered.forEach((place) => {
-    const coord = coordinateFor(place);
-    const marker = L.marker([coord.lat, coord.lng], {
-      icon: markerIcon(place, { selected: place.id === state.selectedId }),
-      keyboard: true,
+  groups.forEach(({ places }) => {
+    if (places.length === 1) {
+      const place = places[0];
+      const coord = coordinateFor(place);
+      const marker = L.marker([coord.lat, coord.lng], {
+        icon: markerIcon(place, { selected: place.id === state.selectedId }),
+        keyboard: false,
+        riseOnHover: true
+      });
+
+      marker.bindTooltip(`${place.emoji} ${place.name}`, {
+        className: "place-tooltip",
+        direction: "top",
+        offset: [0, -2]
+      });
+      marker.on("click", () => selectPlace(place.id, { fly: false, open: true }));
+      marker.addTo(state.markerLayer);
+      state.markers.set(place.id, marker);
+      return;
+    }
+
+    const center = clusterCenter(places);
+    const marker = L.marker(center, {
+      icon: clusterIcon(places),
+      keyboard: false,
       riseOnHover: true
     });
-    marker.bindTooltip(`${place.emoji} ${place.name}`, {
+
+    const preview = places.slice(0, 3).map((place) => place.name).join(" · ");
+    marker.bindTooltip(`${places.length}곳${preview ? ` · ${preview}` : ""}`, {
       className: "place-tooltip",
       direction: "top",
-      offset: [0, -2]
+      offset: [0, -8]
     });
-    marker.on("click", () => selectPlace(place.id, { fly: false, open: true }));
+
+    marker.on("click", () => {
+      const zoom = state.map.getZoom();
+      if (zoom < 13) {
+        state.map.flyTo(center, Math.min(13, zoom + 2), { duration: 0.35 });
+      } else {
+        const bounds = L.latLngBounds(
+          places.map((place) => {
+            const coord = coordinateFor(place);
+            return [coord.lat, coord.lng];
+          })
+        );
+        state.map.fitBounds(bounds, { padding: [46, 46], maxZoom: 14, animate: true });
+      }
+    });
+
     marker.addTo(state.markerLayer);
-    state.markers.set(place.id, marker);
   });
+}
+
+function scheduleMarkerRender(delay = 35) {
+  window.clearTimeout(state.markerRenderTimer);
+  state.markerRenderTimer = window.setTimeout(() => {
+    state.markerRenderTimer = null;
+    renderMarkers();
+  }, delay);
 }
 
 function selectPlace(id, { fly = true, open = true } = {}) {
@@ -643,7 +766,7 @@ function selectPlace(id, { fly = true, open = true } = {}) {
     state.map.flyTo([coord.lat, coord.lng], Math.max(state.map.getZoom(), coord.exact ? 15 : 12), { duration: 0.65 });
   }
 
-  renderMarkers();
+  if (!fly) scheduleMarkerRender(0);
   renderList();
   if (open) openDetail(place);
 }
@@ -1006,7 +1129,12 @@ function bindEvents() {
   });
 
   window.addEventListener("resize", () => {
-    if (state.mobileView === "map") setTimeout(() => state.map?.invalidateSize(), 60);
+    if (state.mobileView !== "map") return;
+    window.clearTimeout(state.markerRenderTimer);
+    state.markerRenderTimer = window.setTimeout(() => {
+      state.map?.invalidateSize();
+      scheduleMarkerRender(45);
+    }, 90);
   });
 }
 
